@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>XR Pro — Núcleo de Interacción</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;600&display=swap');
+
+:root{
+  --bg:#08090d;--surface:#0f1318;--surface2:#161c24;
+  --accent:#4DFFD4;--accent-dim:rgba(77,255,212,.14);
+  --danger:#FF4560;--warn:#FFB703;--ok:#06D6A0;
+  --text:#E8EDF2;--muted:#5a6880;
+  --border:rgba(77,255,212,.2);--panel:rgba(10,14,20,.94);
+  --glow:0 0 22px rgba(77,255,212,.28);
+  --font-ui:'Syne',sans-serif;--font-mono:'JetBrains Mono',monospace;--r:6px;
+}
+body.hc{
+  --bg:#000;--surface:#111;--surface2:#1a1a1a;
+  --accent:#FFE500;--accent-dim:rgba(255,229,0,.12);
+  --danger:#FF6600;--ok:#00FF88;--warn:#FFA500;
+  --text:#FFF;--muted:#AAA;--border:rgba(255,229,0,.5);
+  --panel:rgba(0,0,0,.98);--glow:0 0 20px rgba(255,229,0,.5);
+}
+body.hc .scene-wrap{filter:contrast(1.4) saturate(.15);}
+body.hc .sub-track{background:#000!important;border:2px solid #FFE500!important;color:#FFE500!important;font-size:15px!important;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font-ui);background:var(--bg);color:var(--text);height:100dvh;width:100dvw;overflow:hidden;position:relative;transition:background .4s,color .4s;}
+
+/* SCENE */
+.scene-wrap{position:absolute;inset:0;background:radial-gradient(ellipse 70% 50% at 50% 20%,#0d2235 0%,transparent 65%),radial-gradient(ellipse 35% 35% at 15% 80%,#0a1f16 0%,transparent 55%),linear-gradient(170deg,#05080f 0%,#08090d 100%);overflow:hidden;}
+.grid{position:absolute;bottom:0;left:0;right:0;height:52%;background-image:linear-gradient(rgba(77,255,212,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(77,255,212,.06) 1px,transparent 1px);background-size:50px 50px;transform:perspective(700px) rotateX(68deg);transform-origin:bottom center;}
+.spotlight{position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse 320px 320px at 50% 44%,rgba(77,255,212,.1) 0%,transparent 68%);transition:opacity 1.4s ease;z-index:4;}
+.spotlight.on{opacity:1;}
+.particles{position:absolute;inset:0;pointer-events:none;overflow:hidden;}
+.pt{position:absolute;width:2px;height:2px;border-radius:50%;background:var(--accent);opacity:0;animation:ptRise linear infinite;}
+@keyframes ptRise{0%{transform:translateY(100vh);opacity:0}8%{opacity:.55}88%{opacity:.3}100%{transform:translateY(-8vh) translateX(var(--dx));opacity:0}}
+
+/* HUD */
+.hud{position:fixed;inset:0;pointer-events:none;z-index:50;}
+.corner{position:absolute;width:16px;height:16px;border-color:var(--accent);border-style:solid;opacity:.5;}
+.corner.tl{top:16px;left:16px;border-width:2px 0 0 2px;}.corner.tr{top:16px;right:16px;border-width:2px 2px 0 0;}
+.corner.bl{bottom:16px;left:16px;border-width:0 0 2px 2px;}.corner.br{bottom:16px;right:16px;border-width:0 2px 2px 0;}
+.hud-title{position:absolute;top:20px;left:50%;transform:translateX(-50%);font-family:var(--font-mono);font-size:9px;letter-spacing:4px;color:var(--accent);opacity:.6;white-space:nowrap;}
+
+/* GAZE CURSOR */
+.gaze-cur{position:fixed;width:22px;height:22px;border:2px solid var(--accent);border-radius:50%;pointer-events:none;transform:translate(-50%,-50%);z-index:999;transition:width .2s,height .2s,border-color .2s;}
+.gaze-cur::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:4px;height:4px;background:var(--accent);border-radius:50%;}
+.gaze-cur.over{width:38px;height:38px;border-color:var(--warn);}
+
+/* MODULE A — ZONE */
+.zone-wrap{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);width:clamp(160px,26vw,230px);height:clamp(160px,26vw,230px);cursor:crosshair;z-index:10;}
+.zone-box{position:absolute;inset:0;border-radius:var(--r);border:2px solid rgba(255,69,96,.45);box-shadow:0 0 28px rgba(255,69,96,.14),inset 0 0 36px rgba(255,69,96,.05);animation:zpulse 3s ease-in-out infinite;transition:border-color .6s,box-shadow .6s;}
+@keyframes zpulse{0%,100%{box-shadow:0 0 28px rgba(255,69,96,.14),inset 0 0 36px rgba(255,69,96,.05);}50%{box-shadow:0 0 55px rgba(255,69,96,.32),inset 0 0 55px rgba(255,69,96,.1);}}
+.zone-wrap.active .zone-box{border-color:var(--accent);animation:none;box-shadow:0 0 55px rgba(77,255,212,.4),inset 0 0 55px rgba(77,255,212,.12);}
+.zone-icon{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:clamp(48px,7vw,72px);filter:drop-shadow(0 0 10px rgba(255,69,96,.45));transition:filter .5s;user-select:none;}
+.zone-wrap.active .zone-icon{filter:drop-shadow(0 0 18px rgba(77,255,212,.65));}
+.zone-tag{position:absolute;bottom:-28px;left:50%;transform:translateX(-50%);font-family:var(--font-mono);font-size:9px;letter-spacing:2px;color:var(--danger);text-transform:uppercase;white-space:nowrap;transition:color .4s;}
+.zone-wrap.active .zone-tag{color:var(--accent);}
+
+/* raycasting ring */
+.ray-ring{position:absolute;inset:-14px;pointer-events:none;opacity:0;transition:opacity .25s;}
+.ray-ring svg{width:100%;height:100%;}
+.ray-ring circle{fill:none;stroke:var(--warn);stroke-width:3.5;stroke-dasharray:502;stroke-dashoffset:502;transform:rotate(-90deg);transform-origin:50% 50%;}
+.ray-ring.on{opacity:1;}
+
+/* countdown */
+.gaze-count{position:absolute;top:-44px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--warn);border-radius:var(--r);padding:5px 14px;font-family:var(--font-mono);font-size:11px;letter-spacing:1px;color:var(--warn);white-space:nowrap;opacity:0;transition:opacity .25s;pointer-events:none;}
+.gaze-count.on{opacity:1;}
+
+/* info panel */
+.info-panel{position:absolute;left:50%;top:8%;transform:translateX(-50%) translateY(-14px);width:clamp(280px,46vw,450px);background:var(--panel);border:1px solid var(--accent);border-radius:var(--r);padding:20px 22px 18px;backdrop-filter:blur(14px);box-shadow:var(--glow),0 24px 64px rgba(0,0,0,.65);opacity:0;pointer-events:none;transition:opacity .65s ease,transform .65s ease;z-index:30;}
+.info-panel.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;}
+.info-top{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border);}
+.badge{font-family:var(--font-mono);font-size:8px;letter-spacing:2px;padding:3px 9px;border-radius:3px;}
+.badge.crit{background:var(--danger);color:#fff;}.badge.ok{background:var(--ok);color:#000;display:none;}
+.zone-wrap.active~.info-panel .badge.crit{display:none;}.zone-wrap.active~.info-panel .badge.ok{display:inline;}
+.info-title{font-family:var(--font-mono);font-size:12px;letter-spacing:.5px;color:var(--accent);}
+.info-row{display:flex;justify-content:space-between;align-items:center;margin:7px 0;font-size:10.5px;color:var(--muted);}
+.info-row .val{color:var(--text);font-weight:600;}.info-row .val.d{color:var(--danger);}.info-row .val.w{color:var(--warn);}.info-row .val.k{color:var(--ok);}
+.info-desc{margin-top:12px;font-size:9.5px;line-height:1.75;color:var(--muted);border-top:1px solid var(--border);padding-top:10px;}
+.close-btn{position:absolute;top:10px;right:12px;background:none;border:none;color:var(--muted);font-size:15px;cursor:pointer;transition:color .2s;}
+.close-btn:hover{color:var(--accent);}
+
+/* MODULE B */
+.a11y-fab{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);border-radius:32px;padding:11px 22px;font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--accent);cursor:pointer;z-index:200;backdrop-filter:blur(12px);transition:border-color .3s,box-shadow .3s;white-space:nowrap;}
+.a11y-fab:hover{border-color:var(--accent);box-shadow:var(--glow);}.a11y-fab:focus{outline:3px solid var(--accent);outline-offset:3px;}
+.a11y-panel{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);width:clamp(300px,90vw,480px);background:var(--panel);border:1px solid var(--border);border-radius:var(--r);backdrop-filter:blur(18px);z-index:200;overflow:hidden;max-height:0;transition:max-height .5s ease,border-color .3s;box-shadow:0 -12px 48px rgba(0,0,0,.5);}
+.a11y-panel.open{max-height:480px;border-color:var(--accent);}
+.a11y-inner{padding:22px 24px;}
+.a11y-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:8px;}
+.a11y-title{font-family:var(--font-mono);font-size:10px;letter-spacing:3px;color:var(--accent);}
+.wcag-chips{display:flex;gap:5px;flex-wrap:wrap;}
+.chip{font-family:var(--font-mono);font-size:7.5px;letter-spacing:1px;padding:2px 8px;border-radius:12px;border:1px solid var(--border);color:var(--accent);}
+.a11y-item{display:flex;align-items:center;gap:14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;transition:border-color .3s;}
+.a11y-item:hover{border-color:var(--accent);}
+.a11y-icon{font-size:22px;flex-shrink:0;}.a11y-text{flex:1;}
+.a11y-label{font-size:12px;font-weight:600;color:var(--text);display:block;margin-bottom:3px;}
+.a11y-sub{font-family:var(--font-mono);font-size:8px;color:var(--muted);letter-spacing:.5px;}
+.a11y-wcag{font-family:var(--font-mono);font-size:7.5px;color:var(--accent);margin-top:2px;display:block;}
+.sw{position:relative;width:44px;height:24px;flex-shrink:0;}
+.sw input{opacity:0;width:0;height:0;}
+.sw-t{position:absolute;inset:0;background:var(--surface);border:1px solid var(--muted);border-radius:24px;cursor:pointer;transition:background .3s,border-color .3s;}
+.sw-t::after{content:'';position:absolute;left:4px;top:4px;width:14px;height:14px;background:var(--muted);border-radius:50%;transition:transform .3s,background .3s;}
+.sw input:checked~.sw-t{background:var(--accent-dim);border-color:var(--accent);}
+.sw input:checked~.sw-t::after{transform:translateX(20px);background:var(--accent);}
+.sw input:focus~.sw-t{outline:2px solid var(--accent);outline-offset:2px;}
+
+/* Spatial subtitles */
+.sub-anchor{position:fixed;pointer-events:none;z-index:60;transition:left .4s ease,top .4s ease;}
+.sub-track{background:rgba(0,0,0,.88);border:1px solid var(--border);border-radius:4px;padding:8px 16px;font-family:var(--font-mono);font-size:11px;color:#fff;max-width:min(360px,82vw);white-space:normal;opacity:0;transform:translateY(8px);transition:opacity .35s,transform .35s;pointer-events:none;text-align:center;}
+.sub-anchor.show .sub-track{opacity:1;transform:translateY(0);}
+.sub-line{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:55;opacity:0;transition:opacity .35s;}
+.sub-line.show{opacity:1;}
+
+/* Audio source */
+.audio-src{position:absolute;left:18%;top:58%;width:44px;height:44px;cursor:pointer;z-index:15;}
+.audio-dot{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:24px;animation:apulse 2.2s ease-in-out infinite;}
+@keyframes apulse{0%,100%{opacity:.45;}50%{opacity:1;}}
+.audio-wave{position:absolute;inset:-8px;border-radius:50%;border:1px solid rgba(77,255,212,.2);animation:wave 2.2s ease-out infinite;}
+.audio-wave:nth-child(2){animation-delay:.73s;}.audio-wave:nth-child(3){animation-delay:1.46s;}
+@keyframes wave{0%{transform:scale(1);opacity:.6;}100%{transform:scale(2.6);opacity:0;}}
+
+/* MODULE C */
+.perf-panel{position:fixed;top:20px;right:20px;background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;z-index:100;min-width:136px;font-family:var(--font-mono);font-size:8px;color:var(--muted);}
+.perf-fps{font-family:var(--font-ui);font-size:28px;font-weight:800;color:var(--ok);line-height:1;margin:4px 0 2px;transition:color .4s;}
+.perf-fps.warn{color:var(--warn);}.perf-fps.bad{color:var(--danger);}
+.perf-bar{height:4px;background:var(--surface2);border-radius:2px;margin-top:8px;overflow:hidden;}
+.perf-fill{height:100%;background:var(--ok);border-radius:2px;width:100%;transition:width .5s,background .4s;}
+.audit-section{margin-top:10px;border-top:1px solid var(--border);padding-top:8px;}
+.audit-row{display:flex;justify-content:space-between;margin:4px 0;font-size:7.5px;}
+.ak{color:var(--muted);}.av{color:var(--text);font-weight:600;}.av.g{color:var(--ok);}.av.y{color:var(--warn);}
+.glb-tag{display:inline-block;background:var(--accent-dim);border:1px solid var(--accent);border-radius:3px;font-family:var(--font-mono);font-size:7px;letter-spacing:1px;color:var(--accent);padding:2px 6px;margin-top:6px;}
+
+/* Strip */
+.strip{position:fixed;bottom:0;left:0;right:0;height:22px;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:28px;font-family:var(--font-mono);font-size:8px;color:var(--muted);z-index:60;letter-spacing:1px;}
+.strip em{color:var(--accent);font-style:normal;}
+
+.scanlines{position:fixed;inset:0;pointer-events:none;z-index:500;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.025) 2px,rgba(0,0,0,.025) 4px);}
+
+@media(max-width:560px){.a11y-inner{padding:16px;}.perf-panel{min-width:110px;padding:10px 12px;}.audit-section{display:none;}.glb-tag{display:none;}}
+</style>
+</head>
+<body>
+
+<div class="scanlines" aria-hidden="true"></div>
+
+<!-- SCENE -->
+<div class="scene-wrap" id="scene">
+  <div class="grid" aria-hidden="true"></div>
+  <div class="spotlight" id="spotlight" aria-hidden="true"></div>
+  <div class="particles" id="ptC" aria-hidden="true"></div>
+
+  <!-- Audio source (Module B) -->
+  <div class="audio-src" id="audioSrc" role="button" tabindex="0" aria-label="Fuente de audio ambiental — clic para subtítulo">
+    <div class="audio-wave" aria-hidden="true"></div>
+    <div class="audio-wave" aria-hidden="true"></div>
+    <div class="audio-wave" aria-hidden="true"></div>
+    <div class="audio-dot" aria-hidden="true">🔊</div>
+  </div>
+
+  <!-- Module A: Critical Zone -->
+  <div class="zone-wrap" id="zone" role="region" aria-label="Zona crítica de e-waste — mantén el cursor 10 segundos" tabindex="0">
+    <div class="ray-ring" id="rayRing" aria-hidden="true">
+      <svg viewBox="0 0 100 100"><circle id="rayC" cx="50" cy="50" r="46"/></svg>
+    </div>
+    <div class="gaze-count" id="gazeCount" aria-hidden="true">RAYCASTING · <span id="secLeft">10</span>s</div>
+    <div class="zone-box" aria-hidden="true"></div>
+    <div class="zone-icon" aria-hidden="true">🖥️</div>
+    <div class="zone-tag" aria-hidden="true">⚠ ZONA CRÍTICA · E-WASTE</div>
+  </div>
+
+  <!-- Info panel -->
+  <div class="info-panel" id="infoPanel" role="status" aria-live="polite">
+    <button class="close-btn" id="closeBtn" aria-label="Cerrar panel informativo">✕</button>
+    <div class="info-top">
+      <span class="badge crit">CRÍTICO</span>
+      <span class="badge ok">ANALIZADO</span>
+      <span class="info-title">Acumulación E-WASTE · Sector 7B</span>
+    </div>
+    <div class="info-row"><span>Residuos detectados</span><span class="val d">42.3 Ton/año</span></div>
+    <div class="info-row"><span>Metales pesados</span><span class="val w">Pb · Hg · Cd</span></div>
+    <div class="info-row"><span>Índice contaminación</span><span class="val d">CRÍTICO</span></div>
+    <div class="info-row"><span>Celdas activas</span><span class="val w">2 / 8</span></div>
+    <div class="info-row"><span>Temperatura zona</span><span class="val w">34.6 °C</span></div>
+    <div class="info-row"><span>Radiación detectada</span><span class="val k">Dentro del límite</span></div>
+    <p class="info-desc">Punto crítico de acumulación de residuos electrónicos. Los metales pesados representan riesgo de contaminación de suelo y agua. Se requiere activar las 6 celdas de reciclaje dormantes.</p>
+  </div>
+</div>
+
+<!-- HUD -->
+<div class="hud" aria-hidden="true">
+  <div class="corner tl"></div><div class="corner tr"></div>
+  <div class="corner bl"></div><div class="corner br"></div>
+  <div class="hud-title">XR PRO // NÚCLEO DE INTERACCIÓN v2.4 // RAYCASTING ACTIVO</div>
+</div>
+
+<!-- Gaze cursor -->
+<div class="gaze-cur" id="gazeCur" aria-hidden="true"></div>
+
+<!-- Module C: Performance Panel -->
+<div class="perf-panel" role="region" aria-label="Monitor de rendimiento">
+  <div style="letter-spacing:2px">RENDIMIENTO</div>
+  <div class="perf-fps" id="fpsNum">60</div>
+  <div style="font-size:7px;letter-spacing:1px">FPS · TARGET 60</div>
+  <div class="perf-bar"><div class="perf-fill" id="fpsBar"></div></div>
+  <div class="audit-section">
+    <div style="letter-spacing:1.5px;color:var(--accent);margin-bottom:4px;font-size:8px">AUDITORÍA .GLB</div>
+    <div class="audit-row"><span class="ak">Polígonos</span><span class="av g">↓ 68%</span></div>
+    <div class="audit-row"><span class="ak">Texturas</span><span class="av g">↓ 84%</span></div>
+    <div class="audit-row"><span class="ak">Peso escena</span><span class="av g">28 KB</span></div>
+    <div class="audit-row"><span class="ak">Draw calls</span><span class="av y">12</span></div>
+    <div class="glb-tag">Draco · WebP · Instancing</div>
+  </div>
+</div>
+
+<!-- Module B: Accessibility -->
+<button class="a11y-fab" id="a11yBtn" aria-expanded="false" aria-controls="a11yPanel">♿ PREFERENCIAS XR</button>
+
+<div class="a11y-panel" id="a11yPanel" role="dialog" aria-label="Menú de Preferencias XR" aria-modal="true">
+  <div class="a11y-inner">
+    <div class="a11y-head">
+      <span class="a11y-title">PREFERENCIAS DE ACCESIBILIDAD</span>
+      <div class="wcag-chips">
+        <span class="chip">WCAG 1.4.3</span>
+        <span class="chip">WCAG 1.2.2</span>
+        <span class="chip">WCAG 2.4.7</span>
+      </div>
+    </div>
+
+    <div class="a11y-item">
+      <div class="a11y-icon">🌓</div>
+      <div class="a11y-text">
+        <span class="a11y-label">Modo Alto Contraste</span>
+        <span class="a11y-sub">Texturas y colores para baja visión · Ratio &gt;7:1</span>
+        <span class="a11y-wcag">WCAG 1.4.3 — Contraste mínimo (Nivel AA)</span>
+      </div>
+      <label class="sw"><input type="checkbox" id="swC" role="switch" aria-checked="false"/><span class="sw-t"></span></label>
+    </div>
+
+    <div class="a11y-item">
+      <div class="a11y-icon">💬</div>
+      <div class="a11y-text">
+        <span class="a11y-label">Subtítulos Espaciales</span>
+        <span class="a11y-sub">Texto anclado a la posición de la fuente sonora 3D</span>
+        <span class="a11y-wcag">WCAG 1.2.2 — Subtítulos en tiempo real (Nivel A)</span>
+      </div>
+      <label class="sw"><input type="checkbox" id="swS" role="switch" aria-checked="false"/><span class="sw-t"></span></label>
+    </div>
+
+    <div class="a11y-item">
+      <div class="a11y-icon">🎯</div>
+      <div class="a11y-text">
+        <span class="a11y-label">Foco Aumentado</span>
+        <span class="a11y-sub">Indicadores visibles para navegación con teclado/asistencia</span>
+        <span class="a11y-wcag">WCAG 2.4.7 — Foco visible (Nivel AA)</span>
+      </div>
+      <label class="sw"><input type="checkbox" id="swF" role="switch" aria-checked="false"/><span class="sw-t"></span></label>
+    </div>
+  </div>
+</div>
+
+<!-- Spatial subtitle — follows audio source -->
+<div class="sub-anchor" id="subA" aria-live="assertive">
+  <div class="sub-track" id="subT"></div>
+</div>
+<svg class="sub-line" id="subLine">
+  <defs><marker id="dot" markerWidth="4" markerHeight="4" refX="2" refY="2"><circle cx="2" cy="2" r="1.5" fill="rgba(77,255,212,.7)"/></marker></defs>
+  <line id="subEl" x1="0" y1="0" x2="0" y2="0" stroke="rgba(77,255,212,.45)" stroke-width="1" stroke-dasharray="5 4" marker-end="url(#dot)"/>
+</svg>
+
+<!-- Bottom strip -->
+<div class="strip" aria-hidden="true">
+  <em>A</em> FIJA MIRADA 10s EN ZONA &nbsp;·&nbsp;
+  <em>B</em> PREFERENCIAS XR (ABAJO) &nbsp;·&nbsp;
+  <em>C</em> FPS (ARRIBA DER.)
+</div>
+
+<script>
+/* PARTICLES */
+const ptC=document.getElementById('ptC');
+for(let i=0;i<20;i++){const d=document.createElement('div');d.className='pt';d.style.cssText=`left:${Math.random()*100}%;--dx:${(Math.random()-.5)*100}px;animation-duration:${5+Math.random()*9}s;animation-delay:${Math.random()*10}s;${Math.random()>.6?'background:#39ff14;':''}`;ptC.appendChild(d);}
+
+/* GAZE CURSOR */
+const gazeCur=document.getElementById('gazeCur');
+document.addEventListener('mousemove',e=>{gazeCur.style.left=e.clientX+'px';gazeCur.style.top=e.clientY+'px';});
+
+/* MODULE A — RAYCASTING */
+const THRESHOLD=10000,CIRCUM=2*Math.PI*46;
+const zone=document.getElementById('zone'),rayRing=document.getElementById('rayRing'),rayC=document.getElementById('rayC'),
+      gazeCount=document.getElementById('gazeCount'),secLeft=document.getElementById('secLeft'),
+      infoPanel=document.getElementById('infoPanel'),spotlight=document.getElementById('spotlight'),
+      closeBtn=document.getElementById('closeBtn');
+let gazeStart=null,rafId=null,gazing=false,activated=false;
+rayC.style.strokeDasharray=CIRCUM;rayC.style.strokeDashoffset=CIRCUM;
+
+function startGaze(){if(activated)return;gazing=true;gazeStart=performance.now();rayRing.classList.add('on');gazeCount.classList.add('on');gazeCur.classList.add('over');tick();}
+function tick(){
+  if(!gazing||activated)return;
+  const el=performance.now()-gazeStart,p=Math.min(el/THRESHOLD,1);
+  rayC.style.strokeDashoffset=CIRCUM*(1-p);
+  secLeft.textContent=Math.max(Math.ceil((THRESHOLD-el)/1000),0);
+  if(p>=1)activate();else rafId=requestAnimationFrame(tick);
+}
+function stopGaze(){if(activated)return;gazing=false;cancelAnimationFrame(rafId);rayRing.classList.remove('on');gazeCount.classList.remove('on');gazeCur.classList.remove('over');rayC.style.strokeDashoffset=CIRCUM;secLeft.textContent='10';}
+function activate(){
+  activated=true;rayRing.classList.remove('on');gazeCount.classList.remove('on');gazeCur.classList.remove('over');
+  zone.classList.add('active');
+  spotlight.classList.add('on'); /* CSS transition 1.4s — no brusqueness */
+  setTimeout(()=>infoPanel.classList.add('show'),350);
+  displaySub('⚠ Zona crítica detectada — Acumulación de e-waste confirmada en Sector 7B. Activar celdas de reciclaje.');
+}
+function resetZone(){activated=false;gazing=false;cancelAnimationFrame(rafId);zone.classList.remove('active');spotlight.classList.remove('on');infoPanel.classList.remove('show');rayRing.classList.remove('on');gazeCount.classList.remove('on');gazeCur.classList.remove('over');rayC.style.strokeDashoffset=CIRCUM;secLeft.textContent='10';}
+
+zone.addEventListener('mouseenter',startGaze);zone.addEventListener('mouseleave',stopGaze);
+zone.addEventListener('touchstart',startGaze,{passive:true});zone.addEventListener('touchend',stopGaze);
+zone.addEventListener('focus',startGaze);zone.addEventListener('blur',stopGaze);
+closeBtn.addEventListener('click',resetZone);
+
+/* MODULE B — ACCESSIBILITY */
+const a11yBtn=document.getElementById('a11yBtn'),a11yPanel=document.getElementById('a11yPanel'),
+      swC=document.getElementById('swC'),swS=document.getElementById('swS'),swF=document.getElementById('swF');
+
+a11yBtn.addEventListener('click',()=>{const o=a11yPanel.classList.toggle('open');a11yBtn.setAttribute('aria-expanded',o);if(o)swC.focus();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&a11yPanel.classList.contains('open')){a11yPanel.classList.remove('open');a11yBtn.setAttribute('aria-expanded',false);a11yBtn.focus();}});
+
+/* WCAG 1.4.3 */
+swC.addEventListener('change',function(){document.body.classList.toggle('hc',this.checked);this.setAttribute('aria-checked',this.checked);});
+
+/* WCAG 2.4.7 */
+swF.addEventListener('change',function(){
+  this.setAttribute('aria-checked',this.checked);
+  let s=document.getElementById('focusCSS');
+  if(this.checked){if(!s){s=document.createElement('style');s.id='focusCSS';document.head.appendChild(s);}s.textContent='*:focus{outline:3px solid var(--accent)!important;outline-offset:4px!important;box-shadow:0 0 18px rgba(77,255,212,.55)!important;}';}
+  else if(s)s.remove();
+});
+
+/* WCAG 1.2.2 — SPATIAL SUBTITLES */
+const audioSrc=document.getElementById('audioSrc'),subA=document.getElementById('subA'),
+      subT=document.getElementById('subT'),subLine=document.getElementById('subLine'),subEl=document.getElementById('subEl');
+let subTimer,subIdx=0;
+const LINES=[
+  '🔊 Sistema de monitoreo activo — Residuos electrónicos detectados en zona norte.',
+  '🔊 Alerta: niveles de plomo superan el límite en sector 3-B.',
+  '🔊 Celda de reciclaje #4 requiere mantenimiento. Capacidad al 12%.',
+  '🔊 Temperatura en ascenso. Ventilación adicional recomendada.',
+  '🔊 Catalogadas 42 toneladas de e-waste en sector activo.',
+];
+
+function getSrcPos(){const r=audioSrc.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2};}
+function positionSub(){
+  const src=getSrcPos(),sw=subA.offsetWidth||280,sh=subA.offsetHeight||50;
+  let tx=src.x-sw/2,ty=src.y-sh-60;
+  tx=Math.max(8,Math.min(tx,window.innerWidth-sw-8));
+  ty=Math.max(8,Math.min(ty,window.innerHeight-sh-8));
+  subA.style.left=tx+'px';subA.style.top=ty+'px';
+  subEl.setAttribute('x1',tx+sw/2);subEl.setAttribute('y1',ty+sh);
+  subEl.setAttribute('x2',src.x);subEl.setAttribute('y2',src.y);
+}
+function displaySub(text){
+  if(!swS.checked)return;
+  clearTimeout(subTimer);subT.textContent=text;positionSub();
+  subA.classList.add('show');subLine.classList.add('show');
+  subTimer=setTimeout(()=>{subA.classList.remove('show');subLine.classList.remove('show');},5500);
+}
+swS.addEventListener('change',function(){
+  this.setAttribute('aria-checked',this.checked);
+  if(this.checked){subIdx=(subIdx+1)%LINES.length;displaySub(LINES[subIdx]);}
+  else{subA.classList.remove('show');subLine.classList.remove('show');clearTimeout(subTimer);}
+});
+function triggerAudio(){subIdx=(subIdx+1)%LINES.length;displaySub(LINES[subIdx]);}
+audioSrc.addEventListener('click',triggerAudio);
+audioSrc.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();triggerAudio();}});
+window.addEventListener('resize',()=>{if(subA.classList.contains('show'))positionSub();});
+setInterval(()=>{if(swS.checked){subIdx=(subIdx+1)%LINES.length;displaySub(LINES[subIdx]);}},9000);
+
+/* MODULE C — FPS */
+const fpsNum=document.getElementById('fpsNum'),fpsBar=document.getElementById('fpsBar');
+let lastT=performance.now(),frames=0;
+function mFPS(now){
+  frames++;const dt=now-lastT;
+  if(dt>=1000){const fps=Math.round(frames*1000/dt);fpsNum.textContent=fps;frames=0;lastT=now;
+    const cls=fps<30?'bad':fps<50?'warn':'';fpsNum.className='perf-fps '+cls;
+    const pct=Math.min(fps/60,1)*100;fpsBar.style.width=pct+'%';
+    fpsBar.style.background=fps<30?'var(--danger)':fps<50?'var(--warn)':'var(--ok)';}
+  requestAnimationFrame(mFPS);
+}
+requestAnimationFrame(mFPS);
+</script>
+</body>
+</html>
